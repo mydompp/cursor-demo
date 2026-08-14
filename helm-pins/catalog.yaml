@@ -1,0 +1,21 @@
+# Maps each community chart to its public Helm repo, version pin, and Terraform release.
+# Scripts and CI read this file; Dependabot only updates the Chart.yaml pins.
+charts:
+  aws-load-balancer-controller:
+    helm_repo_name: eks
+    helm_repo_url: https://aws.github.io/eks-charts
+    helm_chart_name: aws-load-balancer-controller
+    pin_dir: helm-pins/aws-load-balancer-controller
+    terraform_file: terraform/helm/aws-load-balancer-controller.tf
+  secrets-store-csi-driver:
+    helm_repo_name: secrets-store-csi-driver
+    helm_repo_url: https://kubernetes-sigs.github.io/secrets-store-csi-driver
+    helm_chart_name: secrets-store-csi-driver
+    pin_dir: helm-pins/secrets-store-csi-driver
+    terraform_file: terraform/helm/secrets-store-csi-driver.tf
+  cluster-autoscaler:
+    helm_repo_name: autoscaler
+    helm_repo_url: https://kubernetes.github.io/autoscaler
+    helm_chart_name: cluster-autoscaler
+    pin_dir: helm-pins/cluster-autoscaler
+    terraform_file: terraform/helm/cluster-autoscaler.tf

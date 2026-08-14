@@ -1,0 +1,9 @@
+apiVersion: v2
+name: aws-load-balancer-controller-pin
+description: Version pin for the community aws-load-balancer-controller Helm chart
+type: application
+version: 0.0.1
+dependencies:
+  - name: aws-load-balancer-controller
+    version: "3.5.0"
+    repository: "https://aws.github.io/eks-charts"

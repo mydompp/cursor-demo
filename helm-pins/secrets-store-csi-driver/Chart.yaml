@@ -1,0 +1,9 @@
+apiVersion: v2
+name: secrets-store-csi-driver-pin
+description: Version pin for the community secrets-store-csi-driver Helm chart
+type: application
+version: 0.0.1
+dependencies:
+  - name: secrets-store-csi-driver
+    version: "1.6.0"
+    repository: "https://kubernetes-sigs.github.io/secrets-store-csi-driver"
