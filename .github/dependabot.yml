@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: helm
+    directory: /helm-pins/aws-load-balancer-controller
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "helm"
+    labels:
+      - helm
+      - dependencies
+
+  - package-ecosystem: helm
+    directory: /helm-pins/secrets-store-csi-driver
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "helm"
+    labels:
+      - helm
+      - dependencies
+
+  - package-ecosystem: helm
+    directory: /helm-pins/cluster-autoscaler
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "helm"
+    labels:
+      - helm
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

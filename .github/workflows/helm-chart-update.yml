@@ -1,0 +1,203 @@
+name: Helm chart update
+
+on:
+  pull_request:
+    paths:
+      - "helm-pins/**"
+      - "terraform/helm/**"
+      - "scripts/**"
+      - ".github/workflows/helm-chart-update.yml"
+
+concurrency:
+  group: helm-chart-update-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  detect-charts:
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.detect.outputs.charts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install script dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Detect changed charts
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/detect-changed-charts.py
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install script dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Run set-key validator tests
+        run: python3 scripts/test_validate_helm_set_keys.py
+
+  values-diff:
+    needs: detect-charts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-charts.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Install script dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Diff chart values.yaml
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./scripts/diff-chart-values.sh "${{ matrix.chart }}" --output-dir values-diff
+
+      - name: Upload values diff
+        uses: actions/upload-artifact@v4
+        with:
+          name: values-diff-${{ matrix.chart }}
+          path: values-diff/
+          if-no-files-found: warn
+
+  validate-set-keys:
+    needs: detect-charts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-charts.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Install script dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Validate terraform set keys against new values.yaml
+        run: ./scripts/validate-chart-set-keys.sh "${{ matrix.chart }}"
+
+  push-ecr-and-merge:
+    needs:
+      - detect-charts
+      - unit-tests
+      - values-diff
+      - validate-set-keys
+    if: >
+      success()
+      && github.actor == 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Install script dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Require AWS configuration
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          if [[ -z "${AWS_ACCOUNT_ID}" || -z "${AWS_REGION}" || -z "${AWS_ROLE_ARN}" ]]; then
+            echo "Set repository variables AWS_ACCOUNT_ID, AWS_REGION, and AWS_ROLE_ARN before publishing charts." >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Push community charts to ECR
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CHARTS: ${{ needs.detect-charts.outputs.charts }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          charts = json.loads(os.environ["CHARTS"])
+          for chart in charts:
+              print(f"::group::Push {chart}")
+              result = subprocess.run(["./scripts/push-chart-to-ecr.sh", chart], check=False)
+              print("::endgroup::")
+              if result.returncode != 0:
+                  sys.exit(result.returncode)
+          PY
+
+      - name: Merge Dependabot PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --squash --delete-branch "$PR_URL"

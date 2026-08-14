@@ -1,0 +1,9 @@
+apiVersion: v2
+name: cluster-autoscaler-pin
+description: Version pin for the community cluster-autoscaler Helm chart
+type: application
+version: 0.0.1
+dependencies:
+  - name: cluster-autoscaler
+    version: "9.59.0"
+    repository: "https://kubernetes.github.io/autoscaler"

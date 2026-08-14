@@ -1,0 +1,6 @@
+aws_account_id         = "123456789012"
+aws_region             = "us-east-1"
+cluster_name           = "example-cluster"
+cluster_endpoint       = "https://EXAMPLE.gr7.us-east-1.eks.amazonaws.com"
+cluster_ca_certificate = "LS0tLS1CRUdJTi..."
+vpc_id                 = "vpc-xxxxxxxx"
