@@ -93,7 +93,7 @@ jobs:
         run: ./scripts/diff-chart-values.sh "${{ matrix.chart }}" --output-dir values-diff
 
       - name: Upload values diff
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: values-diff-${{ matrix.chart }}
           path: values-diff/
