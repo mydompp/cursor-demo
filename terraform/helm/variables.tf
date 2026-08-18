@@ -54,15 +54,6 @@ locals {
   repository_password = "password"
 }
 
-variable "charts_versions" {
-  type = map(any)
-  default = {
-    "datadog"                      = "3.214.0"
-  }
-}
-
-
-
 variable "environment" {
   type = string
 }

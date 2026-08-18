@@ -97,6 +97,93 @@ resource "helm_release" "example" {
         finally:
             path.unlink(missing_ok=True)
 
+    def test_parses_static_set_list(self) -> None:
+        tf = """
+resource "helm_release" "example" {
+  name = "example"
+  set_list {
+    name  = "ignore"
+    value = ["a", "b"]
+  }
+}
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".tf", delete=False) as handle:
+            handle.write(tf)
+            path = Path(handle.name)
+        try:
+            self.assertEqual(extract_set_names(path), ["ignore"])
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_parses_dynamic_set_blocks_from_locals(self) -> None:
+        tf = """
+locals {
+  my_set = [
+    { name = "clusterName", value = "dev" },
+    { name = "serviceAccount.create", value = "false" },
+  ]
+  my_set_list = [
+    { name = "ignoreList", value = ["a", "b"] },
+  ]
+  my_set_sensitive = [
+    { name = "apiKey", value = "secret" },
+  ]
+}
+
+resource "helm_release" "example" {
+  name = "example"
+
+  dynamic "set" {
+    for_each = local.my_set
+    content {
+      name  = set.value.name
+      value = set.value.value
+    }
+  }
+
+  dynamic "set_list" {
+    for_each = local.my_set_list
+    content {
+      name  = set_list.value.name
+      value = set_list.value.value
+    }
+  }
+
+  dynamic "set_sensitive" {
+    for_each = local.my_set_sensitive
+    content {
+      name  = set_sensitive.value.name
+      value = set_sensitive.value.value
+    }
+  }
+}
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".tf", delete=False) as handle:
+            handle.write(tf)
+            path = Path(handle.name)
+        try:
+            self.assertEqual(
+                extract_set_names(path),
+                [
+                    "clusterName",
+                    "serviceAccount.create",
+                    "ignoreList",
+                    "apiKey",
+                ],
+            )
+            errors = validate_set_keys(
+                path,
+                {
+                    "clusterName": None,
+                    "serviceAccount": {"create": True},
+                    "ignoreList": [],
+                    "apiKey": None,
+                },
+            )
+            self.assertEqual(errors, [])
+        finally:
+            path.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     unittest.main()

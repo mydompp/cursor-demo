@@ -1,0 +1,9 @@
+apiVersion: v2
+name: datadog-pin
+description: Version pin for the community datadog Helm chart
+type: application
+version: 0.0.1
+dependencies:
+  - name: datadog
+    version: "3.214.0"
+    repository: "https://helm.datadoghq.com"

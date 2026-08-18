@@ -359,7 +359,7 @@ resource "helm_release" "datadog" {
   repository = local.ecr_oci_repository
   chart      = "datadog"
   namespace  = "monitoring"
-  version    = var.charts_versions.datadog
+  version    = local.chart_versions["datadog"]
   timeout    = 1200
 
   values = [yamlencode(local.datadog_values)]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,7 +16,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from chart_catalog import REPO_ROOT, chart_spec
 
-SET_BLOCK_KEYS = ("set", "set_sensitive")
+SET_BLOCK_KEYS = ("set", "set_sensitive", "set_list")
+LOCAL_REF_RE = re.compile(r"^\$\{\s*local\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}$")
 
 
 def split_helm_path(path: str) -> list[str | int]:
@@ -139,17 +141,59 @@ def iter_helm_releases(hcl_data: Any) -> Iterable[tuple[str, dict[str, Any]]]:
                         yield str(_unquote(name)), item
 
 
+def _collect_locals(hcl_data: Any) -> dict[str, Any]:
+    """Merge every top-level `locals {}` block in a parsed .tf file into one map."""
+    merged: dict[str, Any] = {}
+    for block in _as_list(_lookup(hcl_data, "locals") if isinstance(hcl_data, dict) else None):
+        if not isinstance(block, dict):
+            continue
+        for key, value in block.items():
+            merged[str(_unquote(key))] = value
+    return merged
+
+
+def _iter_set_items(
+    body: dict[str, Any], locals_map: dict[str, Any]
+) -> Iterable[tuple[str, dict[str, Any]]]:
+    """Yield (set_block_kind, item_dict) for both static set blocks and dynamic ones
+    whose for_each references a local list of `{ name, value }` objects."""
+    for key in SET_BLOCK_KEYS:
+        for item in _as_list(_lookup(body, key)):
+            if isinstance(item, dict):
+                yield key, item
+
+    for dyn_block in _as_list(_lookup(body, "dynamic")):
+        if not isinstance(dyn_block, dict):
+            continue
+        for raw_kind, dyn_body in dyn_block.items():
+            kind = str(_unquote(raw_kind))
+            if kind not in SET_BLOCK_KEYS:
+                continue
+            for dyn_item in _as_list(dyn_body):
+                if not isinstance(dyn_item, dict):
+                    continue
+                for_each = _lookup(dyn_item, "for_each")
+                if not isinstance(for_each, str):
+                    continue
+                match = LOCAL_REF_RE.match(for_each.strip())
+                if not match:
+                    continue
+                target = locals_map.get(match.group(1))
+                for local_item in _as_list(target):
+                    if isinstance(local_item, dict):
+                        yield kind, local_item
+
+
 def extract_set_names(tf_path: Path) -> list[str]:
     with tf_path.open(encoding="utf-8") as handle:
         parsed = hcl2.load(handle)
+    locals_map = _collect_locals(parsed)
     names: list[str] = []
     for _release, body in iter_helm_releases(parsed):
-        for key in SET_BLOCK_KEYS:
-            for item in _as_list(_lookup(body, key)):
-                if isinstance(item, dict):
-                    raw_name = _lookup(item, "name")
-                    if raw_name:
-                        names.append(str(_unquote(raw_name)))
+        for _kind, item in _iter_set_items(body, locals_map):
+            raw_name = _lookup(item, "name")
+            if raw_name:
+                names.append(str(_unquote(raw_name)))
     return names
 
 
@@ -157,7 +201,7 @@ def validate_set_keys(tf_path: Path, values: Any) -> list[str]:
     errors: list[str] = []
     names = extract_set_names(tf_path)
     if not names:
-        errors.append(f"No set/set_sensitive names found in {tf_path}")
+        errors.append(f"No set/set_list/set_sensitive names found in {tf_path}")
         return errors
     for name in names:
         try:

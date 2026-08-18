@@ -9,6 +9,7 @@ Tracked charts:
 | `aws-load-balancer-controller` | https://aws.github.io/eks-charts | 3.5.0 |
 | `secrets-store-csi-driver` | https://kubernetes-sigs.github.io/secrets-store-csi-driver | 1.6.0 |
 | `cluster-autoscaler` | https://kubernetes.github.io/autoscaler | 9.59.0 |
+| `datadog` | https://helm.datadoghq.com | 3.214.0 |
 
 ## How it works
 

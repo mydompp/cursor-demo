@@ -25,6 +25,7 @@ variable "chart_names" {
     "aws-load-balancer-controller",
     "secrets-store-csi-driver",
     "cluster-autoscaler",
+    "datadog",
   ]
 }
 

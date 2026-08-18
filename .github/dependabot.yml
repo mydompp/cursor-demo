@@ -36,6 +36,18 @@ updates:
       - helm
       - dependencies
 
+  - package-ecosystem: helm
+    directory: /helm-pins/datadog
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "helm"
+    labels:
+      - helm
+      - dependencies
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

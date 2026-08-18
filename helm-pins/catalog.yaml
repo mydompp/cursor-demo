@@ -19,3 +19,9 @@ charts:
     helm_chart_name: cluster-autoscaler
     pin_dir: helm-pins/cluster-autoscaler
     terraform_file: terraform/helm/cluster-autoscaler.tf
+  datadog:
+    helm_repo_name: datadog
+    helm_repo_url: https://helm.datadoghq.com
+    helm_chart_name: datadog
+    pin_dir: helm-pins/datadog
+    terraform_file: terraform/helm/datadog.tf
